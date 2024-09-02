@@ -46,6 +46,24 @@ CREATE TABLE orderdetails (
   FOREIGN KEY (product_id) REFERENCES products(product_id)
 );
 ```
+## 4. Handling Retrieving Recursive Categories 
+In our e-commerce system, categories can have multiple levels of subcategories, forming a hierarchical tree structure. For example:  
+  
+**Clothes**    
+├── **Shoes** 👟    
+│   ├── Sport Shoes  
+│   │   └── Half Neck Sport Shoes  
+│   └── Casual Shoes  
+├── **Accessories** 🎒    
+    └── Belts  
+      
+Managing and retrieving this hierarchical data efficiently is crucial for providing a seamless user experience. Below are the solutions we considered to handle this recursive relationship.
+### 🛠️ Proposed Solutions
+
+| Solution                                          | Description                                                                                         | Pros                                                       | Cons                                                          |
+|---------------------------------------------------|-----------------------------------------------------------------------------------------------------|------------------------------------------------------------|---------------------------------------------------------------|
+| **1. Application-Level Solution: On-Demand API Calls** | When a user clicks on a category, the application makes an API request to fetch its immediate subcategories dynamically. | **Dynamic Data Loading**: Fetches only the necessary data when needed, optimizing initial load times. | **Increased API Calls**: May lead to multiple requests, increasing latency. |
+| **2. Database-Level Solution: DEnormalization with JSON Subcategories** | Create a new table that stores categories with their subcategories in a JSON field. | **Single Query Retrieval**: Fetch entire category tree in one database call. | **Data Redundancy**: JSON may duplicate data, leading to inconsistencies. |
 
 
 ## 4. Denormalization for Performance Improvement  🚀
