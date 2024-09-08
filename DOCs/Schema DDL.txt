@@ -1,0 +1,50 @@
+-- Table for Customers
+CREATE TABLE customer (
+    customer_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL
+);
+
+-- Table for Categories
+CREATE TABLE category (
+    category_id SERIAL PRIMARY KEY,
+    category_name VARCHAR(255) NOT NULL
+);
+
+-- Table for Products
+CREATE TABLE product (
+    product_id SERIAL PRIMARY KEY,
+    product_name VARCHAR(255) NOT NULL,
+    description VARCHAR(255),
+    long_description TEXT,
+    price NUMERIC(10, 2) NOT NULL,
+    quantity INT NOT NULL,
+    discount NUMERIC(5, 2),
+    category_id INT NOT NULL,
+    FOREIGN KEY (category_id) REFERENCES category(category_id)
+);
+
+-- Table for Orders
+CREATE TABLE orders (
+    order_id SERIAL PRIMARY KEY,
+    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    total NUMERIC(10, 2) NOT NULL,
+    discount NUMERIC(5, 2),
+    ship_date DATE,
+    ship_cost NUMERIC(10, 2),
+    customer_id INT NOT NULL,
+    FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
+);
+
+-- Table for Order_Details (Relationship between Orders and Products)
+CREATE TABLE order_detail (
+    order_id INT,
+    product_id INT,
+    quantity INT NOT NULL,
+    price NUMERIC(10, 2) NOT NULL,
+    PRIMARY KEY (order_id, product_id),
+    FOREIGN KEY (order_id) REFERENCES orders(order_id) ,
+    FOREIGN KEY (product_id) REFERENCES product(product_id)
+);
