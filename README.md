@@ -320,3 +320,126 @@ BEGIN
 END;
 ```
 **🛑 But they can become dangerous if not carefully managed like **cascading triggers** causes innfinite loops.**
+
+
+
+## Query Optimization
+ 
+####  Write SQL Query to Retrieve the total number of products in each category.
+```sql
+EXPLAIN ANALYZE
+SELECT category_name , COUNT(*) AS total_products 
+FROM product
+RIGHT JOIN category ON category.category_id = product.category_id
+GROUP BY category.category_id;
+```
+The database performs a full table scan, resulting in slower performance.By indexing the foreign key(category_id), the database can more efficiently find and join related rows, reducing query execution time.  
+Here is the query execution plan: 
+| Before Optimization | After Optimization |
+|---------------------|--------------------|
+| ![Before Optimization](DOCs/Query%20Optimization/Q1_before.png) | ![After Optimization](DOCs/Query%20Optimization/Q1_after.png) |
+
+####  Write SQL Query to Retrieve the most recent orders with customer information(LIMIT 1000).
+```sql
+EXPLAIN ANALYZE
+SELECT o.order_id,o.order_date,CONCAT(first_name,' ',last_name) As full_name  
+FROM orders o 
+JOIN customer c ON o.customer_id = c.customer_id
+ORDER BY order_date DESC
+LIMIT 1000;
+```
+From the execution plans before and after adding the index on order_date, the following changes and improvements can be observed:
+| **Aspect**                  | **Before Optimization**                                 | **After Optimization**                                 |
+|-----------------------------|--------------------------------------------------------|--------------------------------------------------------|
+| **Execution Plan**             | ![Before Optimization](DOCs/Query%20Optimization/Q2_before.png) | ![After Optimization](DOCs/Query%20Optimization/Q2_after.png) |
+| **Sorting**                  | Top-N heapsort                                        | **Removed** (Since the index provides pre-sorted data, the query plan no longer involves a sort step.)         |
+| **Join Method**              | Parallel Hash Join                                     | The join operation switched to a Nested Loop instead of a Hash Join, which is generally faster when dealing with smaller sets of data (after the limit operation)                                           |
+| **Scan Method on Orders**    | Parallel Seq Scan (Full table scan)                    | The query plan now uses Index Scan Backward on the orders table     |
+
+#### Write SQL Query to List products that have low stock quantities of less than 10 quantities.
+```sql
+EXPLAIN ANALYZE
+SELECT product_name, product_quantity
+FROM Product
+WHERE product_quantity < 10;
+```
+| **Before Optimization**                  | **After Optimization**                                 | **More Optimize**                                 |
+|-----------------------------|--------------------------------------------------------|--------------------------------------------------------|
+| The query scans every row in the table **(Sequential Scan)**          | Creating index on `product_quantity` **Bitmap Index** that has cost reflects the time spent retrieving the actual data from the table based on the bitmap. | Creating **Covering Index** (on `product_quantity`, includes `product_name`) which allows the query to fetch both required columns (`product_name` and `product_quantity`) from the index itself, avoiding table access **(Index Only Scan)** |
+| ![Before Optimization](DOCs/Query%20Optimization/Q3_before.png) | ![After Optimization](DOCs/Query%20Optimization/Q3_after.png) | ![After Optimization](DOCs/Query%20Optimization/Q3_after2.png) |
+
+#### Write SQL Query to Calculate the revenue generated from each product category.
+```sql
+EXPLAIN ANALYZE
+SELECT c.category_name , SUM(o.total_price) AS category_revenue
+FROM category c
+LEFT JOIN product p ON p.category_id=c.category_id
+LEFT JOIN order_detail od ON od.product_id=p.product_id
+LEFT JOIN orders o ON o.order_id=od.order_id
+GROUP BY c.category_id;
+```
+To optimize our query performance, we tracked the joins we created indexes on foreign keys involved in joins, specifically on product.category_id, order_detail.product_id, and order_detail.order_id. This allows the database to quickly locate and match rows during join operations.  
+To further optimize query performance, we strategically applied clustering on key tables based on the foreign keys.
+| Before Optimization | After Optimization |
+|---------------------|--------------------|
+| ![Before Optimization](DOCs/Query%20Optimization/Q4_before.png) | ![After Optimization](DOCs/Query%20Optimization/Q4_after.png) |  
+
+**🛑Indexing and clustering can boost performance, but for large tables with heavy aggregations, they may not be ideal. As tables grow, maintaining indexes and clusters becomes costly, especially with frequent updates like on orders and order_detail tables. Aggregating on indexed columns can still cause performance issues due to the large data volumes being scanned.**  
+
+In scenarios involving large aggregations, a better alternative to relying solely on indexing is using subquery pre-aggregation. Instead of directly joining and aggregating everything at once, we can first pre-aggregate order details in a subquery and then join the summarized data with other tables.
+```sql
+EXPLAIN ANALYZE
+SELECT category_name, SUM(total_price)
+FROM category c
+LEFT JOIN product p ON p.category_id = c.category_id
+LEFT JOIN (
+    SELECT product_id, SUM(total_price) AS total_price
+	FROM order_detail od
+	LEFT JOIN orders o ON od.order_id=o.order_id
+    GROUP BY product_id
+) od ON od.product_id = p.product_id
+GROUP BY c.category_id;
+```
+![Before Optimization](DOCs/Query%20Optimization/Q4_after2.png)
+
+Another solution, We could denormalize the data by embedding some category-related fields (like category_name) in the order_detail table to avoid joining with the product and category tables altogether.
+```sql
+--Add columns
+ALTER TABLE order_detail 
+ADD COLUMN category_id INT,
+ADD COLUMN category_name VARCHAR(255);
+--Update data
+UPDATE order_detail od
+SET category_id = p.category_id, category_name = c.category_name
+FROM product p
+JOIN category c ON p.category_id = c.category_id
+WHERE od.product_id = p.product_id;
+```
+Now, your query can be simplified to:
+```sql
+SELECT category_name, SUM(o.total_price) AS category_revenue
+FROM order_detail od
+JOIN orders o ON od.order_id = o.order_id
+GROUP BY category_name;
+```
+![Before Optimization](DOCs/Query%20Optimization/Q4_after3.png)
+
+**🛑 Although this denormalization reduces some of the complexity and improves execution time, it might still not be the optimal solution in cases where the dataset grows even larger. To further improve performance, we can increase the level of denormalization by creating a pre-aggregated summary table that stores the result of the revenue calculations. This avoids calculating aggregates on-the-fly.**
+```sql
+CREATE TABLE category_revenue (
+    category_id INT PRIMARY KEY,
+    category_name VARCHAR(255),
+    total_revenue NUMERIC
+);
+
+-- Insert Data
+INSERT INTO category_revenue (category_id, category_name, total_revenue)
+SELECT c.category_name, SUM(o.total_price) AS category_revenue
+FROM category c
+LEFT JOIN product p ON c.category_id = p.category_id
+LEFT JOIN order_detail od ON p.product_id = od.product_id
+LEFT JOIN orders o ON od.order_id = o.order_id
+GROUP BY c.category_name;
+```
+Once the data is inserted into the category_revenue table, you can query it directly to get the pre-computed results:
+![Before Optimization](DOCs/Query%20Optimization/Q4_after4.png)
