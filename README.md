@@ -9,11 +9,17 @@
   - [4.3 Customers Orders > $500](#43-retrieve-a-list-of-customers-who-have-placed-orders-totaling-more-than-500-in-the-past-month)
   - [4.4 Text Searching](#44-search-for-all-products-with-the-word-camera-in-either-the-product-name-or-description)
   - [4.5 Recommend Products](#45-suggest-popular-products-in-the-same-category-for-the-same-author-excluding-the-purchsed-product-from-the-recommendations)
-- [5. Indexing](#5-indexing)
+- [5. Advanced Topics](#5-advanced-topics)
+  - [5.1 Indexing](#51-indexing)
+  - [5.2 SubQueries](#52-subqueries)
+  - [5.3 View](#53-view)
+  - [5.4 Stored Procedure](#54-stored-procedure)
+  - [5.5 Trigger](#55-trigger)
 - [6. Challenges Faced](#6-challenges-faced-)
   - [6.1 Handling Recursive Categories](#61-handling-retrieving-recursive-categories)
   - [6.2 High Read Operations - Denormalization](#62-denormalization-for-performance-improvement)
   - [6.3 Null Values and Union Operation](#63-null-values-and-union-operation)
+- [7. Query Optimization](#7-query-optimization)
   
 
 ## 1. Introduction
@@ -214,7 +220,7 @@ END;
 ```
 
 
-## 5.6 Trigger
+## 5.5 Trigger
 ➡️ When an order is deleted from the orders table (perhaps due to cancellation), you might want to automatically delete the related rows in the order_detail table to avoid orphaned records. This ensures that when an order is removed, all its associated details are also removed which using of trigger comes(After Trigger), keeping the data consistent.
 ```sql
 CREATE TRIGGER DeleteOrderDetailsAfterOrderDelete
@@ -395,7 +401,7 @@ LEFT JOIN (
 ) od ON od.product_id = p.product_id
 GROUP BY c.category_id;
 ```
-<img src="DOCs/Query%20Optimization/Q4_after2.png" alt="After Optimization" width="50%" />  
+<img src="DOCs/Query%20Optimization/Q4_after2.png" alt="After Optimization" width="70%" />  
   
 Another solution, We could denormalize the data by embedding some category-related fields (like category_name) in the order_detail table to avoid joining with the product and category tables altogether.
 ```sql
@@ -417,7 +423,7 @@ FROM order_detail od
 JOIN orders o ON od.order_id = o.order_id
 GROUP BY category_name;
 ```
-<img src="DOCs/Query%20Optimization/Q4_after3.png" alt="After Optimization" width="50%" />  
+<img src="DOCs/Query%20Optimization/Q4_after3.png" alt="After Optimization" width="70%" />  
 
 **🛑 Although this denormalization reduces some of the complexity and improves execution time, it might still not be the optimal solution in cases where the dataset grows even larger. To further improve performance, we can increase the level of denormalization by creating a pre-aggregated summary table that stores the result of the revenue calculations. This avoids calculating aggregates on-the-fly.**
 ```sql
@@ -437,7 +443,7 @@ LEFT JOIN orders o ON od.order_id = o.order_id
 GROUP BY c.category_name;
 ```
 Once the data is inserted into the category_revenue table, you can query it directly to get the pre-computed results:
-<img src="DOCs/Query%20Optimization/Q4_after4.png" alt="After Optimization" width="50%" />  
+<img src="DOCs/Query%20Optimization/Q4_after4.png" alt="After Optimization" width="70%" />  
   
 We can use a trigger to update the category_revenue table whenever there are changes in the order_detail table:
 ```sql
