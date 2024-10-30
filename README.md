@@ -29,7 +29,7 @@ This repository provides a detailed framework for developing and optimizing an e
 
 
 ## 3. Schema Creation
-The Schema DDL SQL code can be reviewed in detail in the following document: [Schema DDL](DOCs/Schema%20DDL.txt)
+The Schema DDL SQL code can be reviewed in detail in the following document: [Schema DDL](DOCs/Schema%20DDL.sql)
   
 ### 3.1 Natural Vs Surrogate Primary Key
 We made a surrogate primary key in the Product table, using a simple sequential identifier (e.g., product_id).  
@@ -118,8 +118,8 @@ ORDER BY sales_count DESC
 LIMIT 5;
 ```
 
-
-## 5. Indexing
+## 5. Advanced Topics
+## 5.1 Indexing
 There are two types of index :  
 | **Index Type**         | **Pros**                                                      | **Cons**                                                  | **Time Complexity**            | **Example**                                                                                                     |
 |------------------------|--------------------------------------------------------------|-----------------------------------------------------------|--------------------------------|-----------------------------------------------------------------------------------------------------------------|
@@ -135,100 +135,7 @@ While primary key indexing is automatic, effective indexing should be query-driv
 **Indexing Composite Keys**    
 ➡️ In our e-commerce system, we have a composite key for Order_Details, which consists of (order_id, product_id). By default, the DBMS only indexes order_id. However, since we often query product_id (e.g., to retrieve the top-selling products or product-specific order details), we have added a secondary index on product_id to optimize those queries.
 
-
-
-# 6. Challenges Faced 🤔
-## 6.1 Handling Retrieving Recursive Categories 
-In our e-commerce system, categories can have multiple levels of subcategories, forming a hierarchical tree structure.➡️ For example:  
-  
-**Clothes**    
-├── **Shoes** 👟    
-│   ├── Sport Shoes  
-│   │   └── Half Neck Sport Shoes  
-│   └── Casual Shoes  
-├── **Accessories** 🎒    
-    └── Belts  
-      
-Managing and retrieving this hierarchical data efficiently is crucial for providing a seamless user experience. Below are the solutions we considered to handle this recursive relationship.
-#### 🛠️ Proposed Solutions
-
-| Solution                                          | Description                                                                                         | Pros                                                       | Cons                                                          |
-|---------------------------------------------------|-----------------------------------------------------------------------------------------------------|------------------------------------------------------------|---------------------------------------------------------------|
-| **1. Application-Level Solution: On-Demand API Calls** | When a user clicks on a category, the application makes an API request to fetch its immediate subcategories dynamically. | **Dynamic Data Loading**: Fetches only the necessary data when needed, optimizing initial load times. | **Increased API Calls**: May lead to multiple requests, increasing latency. |
-| **2. Database-Level Solution: Denormalization with JSON Subcategories** | Create a new table that stores categories with their subcategories in a JSON field. | **Single Query Retrieval**: Fetch entire category tree in one database call. | **Data Redundancy**: JSON may duplicate data, leading to inconsistencies. |
-
-
-## 6.2 Denormalization for Performance Improvement  
-In our e-commerce system, we encountered a specific case where the volume of read operations for certain attributes—such as customer details, product information, and sales data—was significantly high. To address this, we implemented denormalization to optimize performance.
-
-➡️ For example, rather than executing multiple joins across various tables to generate sales history reports, We created a denormalized sale_history table that consolidates these frequently accessed attributes into a single table. This approach reduces the need for complex joins and speeds up data retrieval, particularly for reports and queries that require this specific information.
-```sql
-CREATE TABLE sale_history (
-  customer_id SERIAL PRIMARY KEY,
-  first_name VARCHAR(50) NOT NULL,
-  last_name VARCHAR(50) NOT NULL,
-  email VARCHAR(100) NOT NULL UNIQUE,
-  password VARCHAR(255) NOT NULL
-
-  product_id CHAR(8),
-  description VARCHAR(50) NOT NULL,
-  price NUMERIC(5,2) NOT NULL,
-  
-  sale_no SMALLINT,
-  sale_date DATE NOT NULL,
-  quantity INTEGER NOT NULL,
-  amount NUMERIC(6,2) NOT NULL,
-  
-  PRIMARY KEY (sale_no)  -- cutomer_id and product_id can be repeated, but sale_no cannot
-);
-```
-
-## 6.3 Null Values and Union Operation
-we encountered a situation where retrieving data with null values in the CustomerNo field was problematic. Specifically, including these nulls in the results caused issues with the query output.
-Like this query:
-```sql
-SELECT 
-    customers.custumer_id, 
-    customers.first_name, 
-    customers.last_name, 
-    COUNT(*) AS num_sales
-FROM sales
-LEFT JOIN customers ON sales.custumer_id = customers.custumer_id
-GROUP BY customers.custumer_id, customers.first_name, customers.last_name
-ORDER BY customers.last_name, customers.first_name;
-```
-![Query Result](DOCs/Unoin_Nulls.png)
-
-Well, there's no obvious way to eliminate the nulls from the query that we've already got, but what we can do is break the original query into two: 
-one that retrieves the sales for "real" customers, and one that retrieves the cash sales(e.g., a walk-in customer). As long as the results of both queries are compatible, we can then use a UNION to combine them into a single result.
-```sql
-SELECT 
-    customers.custumer_id, 
-    customers.first_name, 
-    customers.last_name, 
-    COUNT(*) AS num_sales
-FROM sales
-LEFT JOIN customers ON sales.custumer_id = customers.custumer_id
-GROUP BY customers.custumer_id, customers.first_name, customers.last_name
-
-UNION
-
-SELECT 
-    'Cash sale' AS custumer_id,
-    'Cash sale' AS first_name,
-    'Cash sale' AS last_name,
-    COUNT(*) AS num_sales
-FROM sales
-WHERE sales.custumer_id IS NULL
-
-ORDER BY last_name, first_name;
-
-```
-![Query Result](DOCs/Unoin_Cash_Sale.png)
-
-
-
-## SubQueries
+## 5.2 SubQueries
 In complex database systems, certain queries require fetching data based on the result of other queries.  
 ➡️ For example:  
 A scenarion where a user selects multiple categories (e.g., "Hiking Boots," "Hooded Sweats," "College Teams") to filter the displayed products
@@ -255,9 +162,7 @@ WHERE p.product_price > (
 ```
 **🛑 The inner query is executed for each row returned by the outer query (Correlated Subquery) which is performance challange.**
 
-
-
-## View
+## 5.3 View
 ➡️ We want to generate a sales report that summarizes customer purchases over the past month. The report should include customer names, total sales amounts, and the number of purchases for each customer.
 **Challenge:** The sales data is spread across multiple tables: orders, order_detail, and customer. Creating this report requires complex joins and aggregations that would be cumbersome for end-users who need to access this information frequently.
 **Solution:** Create a view that encapsulates the logic required to generate this report.
@@ -278,7 +183,7 @@ ORDER BY total_sales DESC;
 **🛑 Although views offer significant benefits in terms of simplifying complex queries, enhancing security(Access Levels), and ensuring consistency in reporting, they also come with drawbacks related to functionality, and maintenance,Views can become stale if underlying data changes(Static View)**
 
 
-## Stored Procedure
+## 5.4 Stored Procedure
 ➡️ When a customer places an order, multiple operations need to be executed, such as updating inventory, calculating total prices, applying discounts, and creating records in the orders and order details tables.  
 A stored procedure can encapsulate all these steps into a single transaction, ensuring that either all changes are committed or none are, preserving data integrity.
 #### pros:  
@@ -309,7 +214,7 @@ END;
 ```
 
 
-## Trigger
+## 5.6 Trigger
 ➡️ When an order is deleted from the orders table (perhaps due to cancellation), you might want to automatically delete the related rows in the order_detail table to avoid orphaned records. This ensures that when an order is removed, all its associated details are also removed which using of trigger comes(After Trigger), keeping the data consistent.
 ```sql
 CREATE TRIGGER DeleteOrderDetailsAfterOrderDelete
@@ -322,10 +227,100 @@ END;
 **🛑 But they can become dangerous if not carefully managed like **cascading triggers** causes innfinite loops.**
 
 
+## 6. Challenges Faced 🤔
+### 6.1 Handling Retrieving Recursive Categories 
+In our e-commerce system, categories can have multiple levels of subcategories, forming a hierarchical tree structure.➡️ For example:  
+  
+**Clothes**    
+├── **Shoes** 👟    
+│   ├── Sport Shoes  
+│   │   └── Half Neck Sport Shoes  
+│   └── Casual Shoes  
+├── **Accessories** 🎒    
+    └── Belts  
+      
+Managing and retrieving this hierarchical data efficiently is crucial for providing a seamless user experience. Below are the solutions we considered to handle this recursive relationship.
+#### 🛠️ Proposed Solutions
 
-## Query Optimization
+| Solution                                          | Description                                                                                         | Pros                                                       | Cons                                                          |
+|---------------------------------------------------|-----------------------------------------------------------------------------------------------------|------------------------------------------------------------|---------------------------------------------------------------|
+| **1. Application-Level Solution: On-Demand API Calls** | When a user clicks on a category, the application makes an API request to fetch its immediate subcategories dynamically. | **Dynamic Data Loading**: Fetches only the necessary data when needed, optimizing initial load times. | **Increased API Calls**: May lead to multiple requests, increasing latency. |
+| **2. Database-Level Solution: Denormalization with JSON Subcategories** | Create a new table that stores categories with their subcategories in a JSON field. | **Single Query Retrieval**: Fetch entire category tree in one database call. | **Data Redundancy**: JSON may duplicate data, leading to inconsistencies. |
+
+
+### 6.2 Denormalization for Performance Improvement  
+In our e-commerce system, we encountered a specific case where the volume of read operations for certain attributes—such as customer details, product information, and sales data—was significantly high. To address this, we implemented denormalization to optimize performance.
+
+➡️ For example, rather than executing multiple joins across various tables to generate sales history reports, We created a denormalized sale_history table that consolidates these frequently accessed attributes into a single table. This approach reduces the need for complex joins and speeds up data retrieval, particularly for reports and queries that require this specific information.
+```sql
+CREATE TABLE sale_history (
+  customer_id SERIAL PRIMARY KEY,
+  first_name VARCHAR(50) NOT NULL,
+  last_name VARCHAR(50) NOT NULL,
+  email VARCHAR(100) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL
+
+  product_id CHAR(8),
+  description VARCHAR(50) NOT NULL,
+  price NUMERIC(5,2) NOT NULL,
+  
+  sale_no SMALLINT,
+  sale_date DATE NOT NULL,
+  quantity INTEGER NOT NULL,
+  amount NUMERIC(6,2) NOT NULL,
+  
+  PRIMARY KEY (sale_no)  -- cutomer_id and product_id can be repeated, but sale_no cannot
+);
+```
+
+### 6.3 Null Values and Union Operation
+we encountered a situation where retrieving data with null values in the CustomerNo field was problematic. Specifically, including these nulls in the results caused issues with the query output.
+Like this query:
+```sql
+SELECT 
+    customers.custumer_id, 
+    customers.first_name, 
+    customers.last_name, 
+    COUNT(*) AS num_sales
+FROM sales
+LEFT JOIN customers ON sales.custumer_id = customers.custumer_id
+GROUP BY customers.custumer_id, customers.first_name, customers.last_name
+ORDER BY customers.last_name, customers.first_name;
+```
+<img src="DOCs/Unoin_Nulls.png" alt="Query Result" width="70%" />  
+
+Well, there's no obvious way to eliminate the nulls from the query that we've already got, but what we can do is break the original query into two: 
+one that retrieves the sales for "real" customers, and one that retrieves the cash sales(e.g., a walk-in customer). As long as the results of both queries are compatible, we can then use a UNION to combine them into a single result.
+```sql
+SELECT 
+    customers.custumer_id, 
+    customers.first_name, 
+    customers.last_name, 
+    COUNT(*) AS num_sales
+FROM sales
+LEFT JOIN customers ON sales.custumer_id = customers.custumer_id
+GROUP BY customers.custumer_id, customers.first_name, customers.last_name
+
+UNION
+
+SELECT 
+    'Cash sale' AS custumer_id,
+    'Cash sale' AS first_name,
+    'Cash sale' AS last_name,
+    COUNT(*) AS num_sales
+FROM sales
+WHERE sales.custumer_id IS NULL
+
+ORDER BY last_name, first_name;
+
+```
+<img src="DOCs/Unoin_Cash_Sale.png" alt="Query Result" width="70%" />  
+
+
+
+## 7. Query Optimization
  
-####  Write SQL Query to Retrieve the total number of products in each category.
+### 7.1 Write SQL Query to Retrieve the total number of products in each category.
 ```sql
 EXPLAIN ANALYZE
 SELECT category_name , COUNT(*) AS total_products 
@@ -339,7 +334,7 @@ Here is the query execution plan:
 |---------------------|--------------------|
 | ![Before Optimization](DOCs/Query%20Optimization/Q1_before.png) | ![After Optimization](DOCs/Query%20Optimization/Q1_after.png) |
 
-####  Write SQL Query to Retrieve the most recent orders with customer information(LIMIT 1000).
+### 7.2 Write SQL Query to Retrieve the most recent orders with customer information(LIMIT 1000).
 ```sql
 EXPLAIN ANALYZE
 SELECT o.order_id,o.order_date,CONCAT(first_name,' ',last_name) As full_name  
@@ -356,7 +351,7 @@ From the execution plans before and after adding the index on order_date, the fo
 | **Join Method**              | Parallel Hash Join                                     | The join operation switched to a Nested Loop instead of a Hash Join, which is generally faster when dealing with smaller sets of data (after the limit operation)                                           |
 | **Scan Method on Orders**    | Parallel Seq Scan (Full table scan)                    | The query plan now uses Index Scan Backward on the orders table     |
 
-#### Write SQL Query to List products that have low stock quantities of less than 10 quantities.
+### 7.3 Write SQL Query to List products that have low stock quantities of less than 10 quantities.
 ```sql
 EXPLAIN ANALYZE
 SELECT product_name, product_quantity
@@ -368,7 +363,7 @@ WHERE product_quantity < 10;
 | The query scans every row in the table **(Sequential Scan)**          | Creating index on `product_quantity` **Bitmap Index** that has cost reflects the time spent retrieving the actual data from the table based on the bitmap. | Creating **Covering Index** (on `product_quantity`, includes `product_name`) which allows the query to fetch both required columns (`product_name` and `product_quantity`) from the index itself, avoiding table access **(Index Only Scan)** |
 | ![Before Optimization](DOCs/Query%20Optimization/Q3_before.png) | ![After Optimization](DOCs/Query%20Optimization/Q3_after.png) | ![After Optimization](DOCs/Query%20Optimization/Q3_after2.png) |
 
-#### Write SQL Query to Calculate the revenue generated from each product category.
+### 7.4 Write SQL Query to Calculate the revenue generated from each product category.
 ```sql
 EXPLAIN ANALYZE
 SELECT c.category_name , SUM(o.total_price) AS category_revenue
@@ -400,8 +395,8 @@ LEFT JOIN (
 ) od ON od.product_id = p.product_id
 GROUP BY c.category_id;
 ```
-![Before Optimization](DOCs/Query%20Optimization/Q4_after2.png)
-
+<img src="DOCs/Query%20Optimization/Q4_after2.png" alt="After Optimization" width="50%" />  
+  
 Another solution, We could denormalize the data by embedding some category-related fields (like category_name) in the order_detail table to avoid joining with the product and category tables altogether.
 ```sql
 --Add columns
@@ -422,7 +417,7 @@ FROM order_detail od
 JOIN orders o ON od.order_id = o.order_id
 GROUP BY category_name;
 ```
-![Before Optimization](DOCs/Query%20Optimization/Q4_after3.png)
+<img src="DOCs/Query%20Optimization/Q4_after3.png" alt="After Optimization" width="50%" />  
 
 **🛑 Although this denormalization reduces some of the complexity and improves execution time, it might still not be the optimal solution in cases where the dataset grows even larger. To further improve performance, we can increase the level of denormalization by creating a pre-aggregated summary table that stores the result of the revenue calculations. This avoids calculating aggregates on-the-fly.**
 ```sql
@@ -442,4 +437,47 @@ LEFT JOIN orders o ON od.order_id = o.order_id
 GROUP BY c.category_name;
 ```
 Once the data is inserted into the category_revenue table, you can query it directly to get the pre-computed results:
-![Before Optimization](DOCs/Query%20Optimization/Q4_after4.png)
+<img src="DOCs/Query%20Optimization/Q4_after4.png" alt="After Optimization" width="50%" />  
+  
+We can use a trigger to update the category_revenue table whenever there are changes in the order_detail table:
+```sql
+CREATE OR REPLACE FUNCTION trg_update_category_revenue_func()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Update category_revenue table based on the new order details
+    UPDATE category_revenue cr
+    SET total_revenue = (
+        SELECT SUM(o.total_price)
+        FROM category c
+        LEFT JOIN product p ON c.category_id = p.category_id
+        LEFT JOIN order_detail od ON p.product_id = od.product_id
+        LEFT JOIN orders o ON od.order_id = o.order_id
+        WHERE c.category_id = cr.category_id
+        GROUP BY c.category_id
+    )
+    -- Only the affected categories table are updated in the category_revenue.
+    WHERE cr.category_id IN (
+        SELECT c.category_id
+        FROM category c
+        LEFT JOIN product p ON c.category_id = p.category_id
+        LEFT JOIN order_detail od ON p.product_id = od.product_id
+        WHERE od.order_id = NEW.order_id
+    );
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create the trigger
+CREATE TRIGGER trg_update_category_revenue
+AFTER INSERT OR UPDATE ON order_detail
+FOR EACH ROW
+EXECUTE FUNCTION trg_update_category_revenue_func();
+```
+🟢🟢 Feeling a bit overwhelmed by all the solutions? Here's a clear comparison to simplify things for you:
+
+| **Criteria / Solutions**              | **Indexing & Clustering**                | **Subquery Pre-Aggregation**             | **Simple Denormalization**                      | **Pre-Aggregated Summary Table(Next Level Of Denormalization)**  |
+|---------------------------------------|------------------------------------------|------------------------------------------|------------------------------------------|------------------------------------------|
+| **Execution Time**                              | **7826.924** ms             | **5254.025** ms            | **2964.587** ms          | **0.065** ms|
+| **Cons**                              | Extra storage, maintenance required, may still be slow for large aggregations. | More complex query logic; still needs joins. | Redundant data, harder to maintain, increases storage usage. | Extra storage, triggers needed to keep updated. |
+
