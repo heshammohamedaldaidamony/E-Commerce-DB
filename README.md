@@ -23,7 +23,12 @@
   
 
 ## 1. Introduction
-This repository provides a detailed framework for developing and optimizing an e-commerce database using PostgreSQL. It includes a variety of SQL queries, database design principles, and strategies for performance enhancement. You'll find insights into indexing techniques, denormalization, and other advanced methods to handle and analyze data efficiently, ensuring your system is robust and scalable.
+This repository provides a comprehensive framework for developing and optimizing an e-commerce database using PostgreSQL. It covers various aspects of database design, including entity relationship diagrams and schema definitions, alongside practical sample queries that facilitate insights into customer behavior and sales performance.  
+
+The repository delves into advanced topics such as indexing strategies to enhance query performance, the use of subqueries for complex data retrieval, and the implementation of views to simplify data access. Additionally, it explores stored procedures and triggers to automate processes and ensure data integrity.
+
+You'll find insights into handling challenges faced during development.  
+And a significant focus of this project is query optimization, which is essential for improving the efficiency of SQL queries, reducing execution time, and minimizing resource consumption. You'll find techniques for analyzing query execution plans, optimizing joins, and utilizing indexing and denormalization strategies to ensure your e-commerce system is robust, efficient, and scalable. Overall, this project emphasizes performance enhancement techniques to ensure your e-commerce system is robust, efficient, and scalable.
 
 
 ## 2. Entity Relationship Diagram 📊  
